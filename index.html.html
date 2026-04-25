@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>筋肉紳士：脱衣進化と粉塵爆発</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Comic Sans MS', sans-serif; touch-action: none; }
+        #ui { position: absolute; top: 20px; width: 100%; text-align: center; pointer-events: none; color: #0f0; font-family: monospace; }
+        #score { font-size: 20px; }
+        #total-score { font-size: 30px; color: #fff; text-shadow: 0 0 10px #0f0; }
+        #msg { font-size: 60px; color: #ff00ff; display: none; font-weight: bold; position: absolute; width: 100%; top: 40%; text-align: center; z-index: 2000; }
+        #result-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #fff; display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 3000; color: #000; }
+        canvas { display: block; }
+        .btn { background: #000; color: #fff; padding: 20px 40px; border: 5px solid #000; font-size: 24px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div id="total-score">TOTAL MUSCLE: 0</div>
+        <div id="score">STACKS: 0 / 10</div>
+    </div>
+    <div id="msg">SHINY BULK!</div>
+    <div id="result-screen">
+        <h1 style="font-size: 50px;">殿堂入り</h1>
+        <p>あなたの総筋肉量</p>
+        <div id="final-score" style="font-size: 80px; font-weight: bold;">0</div>
+        <button class="btn" onclick="location.reload()">転生する</button>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+    const totalEl = document.getElementById('total-score');
+    const msgEl = document.getElementById('msg');
+    const resultScreen = document.getElementById('result-screen');
+    const finalScoreEl = document.getElementById('final-score');
+
+    let w, h, currentScore = 0, totalScore = 0, phase = 0;
+    let shakers = [];
+    const gravity = 0.4;
+    let isGameOver = false;
+
+    // 進化の見た目
+    const manEvos = ['🤵', '👕', '🦾'];
+    const man = { x: 0, y: 0, size: 150, emoji: manEvos[0] };
+
+    function init() {
+        w = canvas.width = window.innerWidth;
+        h = canvas.height = window.innerHeight;
+        man.x = w / 2;
+        man.y = h - 120;
+    }
+    window.addEventListener('resize', init);
+    init();
+
+    class Shaker {
+        constructor(x) {
+            this.x = x;
+            this.y = 50;
+            this.vy = 0;
+            this.vx = (Math.random() - 0.5) * 5;
+            this.angle = 0;
+            this.va = (Math.random() - 0.5) * 0.3;
+            // 粉末爆弾（15%）
+            this.isPowder = Math.random() < 0.15;
+            this.emoji = this.isPowder ? '💣' : (Math.random() > 0.5 ? '💰' : '🥤');
+            this.stacked = false;
+            this.size = this.isPowder ? 60 : 50;
+            this.life = 200; // 粉末が消えるまでの時間
+        }
+
+        update() {
+            if (!this.stacked) {
+                this.vy += gravity;
+                this.y += this.vy;
+                this.x += this.vx;
+                this.angle += this.va;
+
+                // 土台・積まれたものとの判定
+                let dx = this.x - man.x;
+                let dy = this.y - (man.y - 40);
+                if (Math.abs(dx) < 70 && Math.abs(dy) < 50 && this.vy > 0) {
+                    if (this.isPowder) {
+                        this.explode();
+                        return false; 
+                    }
+                    this.stacked = true;
+                    this.y = man.y - 70 - (shakers.filter(s=>s.stacked).length * 15);
+                    currentScore++;
+                    totalScore += 100;
+                    updateUI();
+                    if(currentScore >= 10) niceBulk();
+                }
+                if (this.y > h + 100) return false;
+            }
+            return true;
+        }
+
+        explode() {
+            // 爆発したらしばらく画面を絵文字で埋める
+            this.emoji = '☁️';
+            this.size = 500;
+            this.stacked = true; // 画面に固定
+            setTimeout(() => { this.y = -9999; }, 2000); // 2秒で消える
+        }
+
+        draw() {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.rotate(this.angle);
+            ctx.font = `${this.size}px serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(this.emoji, 0, 0);
+            ctx.restore();
+        }
+    }
+
+    function updateUI() {
+        scoreEl.innerText = `STACKS: ${currentScore} / 10`;
+        totalEl.innerText = `TOTAL MUSCLE: ${totalScore}`;
+    }
+
+    function niceBulk() {
+        if (isGameOver) return;
+        phase++;
+        msgEl.style.display = 'block';
+        
+        shakers.forEach(s => {
+            s.stacked = false;
+            s.vy = -20;
+            s.vx = (Math.random() - 0.5) * 30;
+        });
+
+        if (phase < 3) {
+            man.emoji = manEvos[phase];
+            man.size += 50;
+            currentScore = 0;
+            updateUI();
+        } else {
+            man.emoji = '🏆'; // 最終進化
+            isGameOver = true;
+            setTimeout(() => {
+                resultScreen.style.display = 'flex';
+                finalScoreEl.innerText = totalScore;
+            }, 2000);
+        }
+        setTimeout(() => { msgEl.style.display = 'none'; }, 1000);
+    }
+
+    canvas.addEventListener('mousedown', (e) => shakers.push(new Shaker(e.clientX)));
+    canvas.addEventListener('touchstart', (e) => { e.preventDefault(); shakers.push(new Shaker(e.touches[0].clientX)); }, {passive:false});
+
+    function loop() {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, w, h);
+        
+        // 筋肉
+        ctx.font = `${man.size}px serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText(man.emoji, man.x, man.y);
+
+        shakers = shakers.filter(s => s.update());
+        shakers.forEach(s => s.draw());
+        requestAnimationFrame(loop);
+    }
+    loop();
+</script>
+</body>
+</html>
